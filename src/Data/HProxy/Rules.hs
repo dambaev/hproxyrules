@@ -1,18 +1,19 @@
 {-# LANGUAGE BangPatterns #-}
 module Data.HProxy.Rules
-    ( parseDir
-    , parseFile
-    , Rules
-    ) where
+    where
 
 import Data.Maybe
 import Data.List
+import Data.Bits
 import System.IO
 import Control.Monad
 import System.Directory
 import Text.ParserCombinators.Parsec
 
 
+{- Containes either error with line number or list with line and rule
+ - in it
+ -}
 data Rules = Rules FileName (Either (Int,ParseError) [(Int, Rule)])
     deriving (Show)
 
@@ -27,7 +28,13 @@ data RulePermission = RuleAllow
                     | RuleDeny
     deriving (Eq,Show)
 
-data Rule = Rule RulePermission (Maybe SIDs) (Maybe Destinations) (Maybe Dates) (Maybe Times)
+data Rule = Rule
+    { rulePermission:: RulePermission
+    , ruleSIDs:: (Maybe SIDs)
+    , ruleDestinations:: (Maybe Destinations)
+    , ruleDates::(Maybe Dates)
+    , ruleTimes:: (Maybe Times)
+    }
           | Comment
     deriving (Eq,Show)
 
@@ -45,12 +52,58 @@ data Destination = DestinationHost IPAddress
     deriving (Eq,Show)
 type Destinations = [Destination]
            
-   
+isAddrPortExistsInDests:: Destination-> Destination-> Bool
+isAddrPortExistsInDests addr1@(DestinationAddrPort ip1 port1) 
+    addr2@(DestinationAddrPort ip2 port2) = addr1 == addr2
+isAddrPortExistsInDests addr1@(DestinationAddrPort ip1 port1) 
+    addr2@(DestinationHost ip2) = ip1 == ip2
+isAddrPortExistsInDests addr1@(DestinationAddrPort ip1 port1) 
+    addr2@(DestinationNet ip2 mask2) = isNetContainesIP addr2 ip1
+isAddrPortExistsInDests _ _ = False
 
-data Host = Host IP
-    deriving (Eq,Show)
-data Mask = Mask MaskT
-    deriving (Eq,Show)
+isNetContainesIP:: Destination-> IPAddress-> Bool
+isNetContainesIP (DestinationNet netip netmask) ip1 
+    | netmask == 32 = netip == ip1
+    | netmask == 0 = True
+    | otherwise = 
+        let enetrawip = ip4ToInt netip
+            eiprawip = ip4ToInt ip1
+            mask:: Int
+            mask = genMask netmask
+        in case enetrawip of
+                Left _ -> False
+                Right netrawip ->
+                    case eiprawip of
+                        Left _ -> False
+                        Right rawip ->
+                            (netrawip .&. mask) == ( rawip .&. mask)
+
+
+genMask bits = genMask' bits 0
+
+genMask' 0 tmp = tmp
+genMask' bits tmp = genMask' (bits - 1) (setBit tmp (32 - bits))
+
+ip4ToInt:: IPAddress -> Either ParseError Int
+ip4ToInt (IPAddress ip) = parse parseIntFromIP4 "unknown" ip
+
+parseIntFromIP4:: GenParser Char st Int
+parseIntFromIP4 = do
+    _b1 <- many1 digit
+    char '.'
+    _b2 <- many1 digit
+    char '.'
+    _b3 <- many1 digit
+    char '.'
+    _b4 <- many1 digit
+    let b1 = read _b1
+        b2 = read _b2
+        b3 = read _b3
+        b4 = read _b4
+        ret = (b1 `shiftL` 24 ) .|. ( b2 `shiftL` 16) .|. 
+            ( b3 `shiftL` 8) .|. b4
+    return $! ret
+    
 
 data IPAddress = IPAddress IPT
     deriving (Eq,Show)
@@ -67,17 +120,52 @@ data Date = DateDayOfWeek Int
     deriving (Eq,Show)
 type Dates = [Date]
 
+isDateBeetwinDates:: DateYYYYMMDD-> Date -> Bool
+isDateBeetwinDates date1 (DateRange date2 date3) = 
+    date1 >= date2 && date1 <= date3
+isDateBeetwinDates date1 (DateDay date2) = 
+    date1 == date2
+isDateBeetwinDates _ _ = False
+
+isDateOfWeekBeetwinDaysOfWeek day1 (DateDaysOfWeek day2 day3) = 
+    day1 >= day2 && day1 <= day3
+isDateOfWeekBeetwinDaysOfWeek day1 (DateDayOfWeek day2) = 
+    day1 == day2
+isDateOfWeekBeetwinDaysOfWeek _ _ = False
+
+
 data Time = TimeRange TimeHHMM TimeHHMM
     deriving (Eq,Show)
 type Times = [Time]  
 
+isTimeBeetwinTimes:: TimeHHMM-> Time-> Bool
+isTimeBeetwinTimes time1 (TimeRange time2 time3) = 
+    time1 >= time2 && time1 <= time3
+isTimeBeetwinTimes _ _ = False
+
 data TimeHHMM = TimeHHMM Int Int
     deriving (Eq,Show)
 
+instance Ord TimeHHMM where
+    (TimeHHMM h1 m1) > (TimeHHMM h2 m2) 
+        | h1 < h2 = False
+        | h1 > h2 = True
+        | m1 < m2 = False
+        | m1 > m2 = True
+        | otherwise = False
 
 data DateYYYYMMDD = DateYYYYMMDD Int Int Int
     deriving (Eq, Show)
 
+instance Ord DateYYYYMMDD where
+    (DateYYYYMMDD y1 m1 d1) > (DateYYYYMMDD y2 m2 d2) 
+        | y1 < y2 = False
+        | y1 > y2 = True
+        | m1 < m2 = False
+        | m1 > m2 = True
+        | d1 < d2 = False
+        | d1 > d1 = True
+        | otherwise = False
 
 
 
@@ -185,7 +273,10 @@ parseAddrPort = do
     ip <- parseIPAddress
     char ':'
     port <- many1 digit
-    return $! DestinationAddrPort ip (read port)
+    let iport = read port
+    if iport < 0 || iport > 65535 
+        then unexpected "port must be >0 and <65536"
+        else return $! DestinationAddrPort ip (read port)
 
 
 parseDates:: GenParser Char st Dates
@@ -337,10 +428,3 @@ parseDir dirname = do
             newrules <- parseFile $! dirname ++ "/" ++ fname
             return $! newrules:rules 
     
-    
-
-main = do
-    ret <- parseDir "rules"
-    print ret
-    return ()
-
