@@ -153,6 +153,11 @@ instance Ord TimeHHMM where
         | m1 < m2 = False
         | m1 > m2 = True
         | otherwise = False
+    time1 < time2 = not $! time1 > time2
+    time1 >= time2 = time1 > time2 || time1 == time2
+    time1 <= time2 = time1 < time2 || time1 == time2
+    
+    
 
 data DateYYYYMMDD = DateYYYYMMDD Int Int Int
     deriving (Eq, Show)
@@ -166,6 +171,9 @@ instance Ord DateYYYYMMDD where
         | d1 < d2 = False
         | d1 > d1 = True
         | otherwise = False
+    date1 < date2 = not $! date1 > date2
+    date1 >= date2 = date1 > date2 || date1 == date2
+    date1 <= date2 = date1 < date2 || date1 == date2
 
 
 
@@ -402,9 +410,12 @@ parseFile fname = do
                     case parseRuleLine str of 
                         Left e -> Left (line + 1, e)
                         Right rule -> Right ((line + 1, rule ):rules)
+                filterComment:: (Int,Rule) -> Bool
+                filterComment (_, Comment)  = False
+                filterComment _ = True
             in case foldl foo (Right []) fileLines of
                 Left e -> Left e
-                Right some ->  Right $! reverse some
+                Right some ->  Right $! reverse $! filter filterComment some
 
 -- allow sids [user SID1] dests [ net 192.168.11.30/30 ] dates [range 2013.11.01 - 2014.01.01, weekDay 5, weekDays 0-4, day 2013.11.10 ] times [ 08:30 - 21:00 ]
 -- deny sids [user SID1] dests [ net 192.168.11.30/30 ] time [ datetime 2013.11.10 00:00]
