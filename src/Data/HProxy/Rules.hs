@@ -431,7 +431,7 @@ parseDir dirname = do
     !sorted <- filterM filterfoo $! reverse $! sort $! contents
     foldM doParseFiles [] sorted 
         where
-        filterfoo x | ".rule" `isInfixOf` x = return True
+        filterfoo x | ".rule" `isSuffixOf` x = return True
                     | otherwise = doesFileExist x
                     
         doParseFiles:: [Rules] -> String-> IO [Rules]

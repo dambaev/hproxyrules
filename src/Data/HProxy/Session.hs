@@ -48,9 +48,7 @@ isMatched _ = True
 
 matchSessionRules::ProxySession -> [Rules]-> Maybe (String, Int, Rule)
 matchSessionRules session !rulesFiles = 
-    let matchedAll = matchSessionRulesHelper session rulesFiles
-            
-    in case matchedAll of
+    case matchSessionRulesHelper session rulesFiles of
         [] -> Nothing
         some:_ -> Just some
     
