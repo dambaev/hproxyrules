@@ -24,18 +24,18 @@ type NetT = String
 type IP = String
 type MaskT = Int
 
-data RulePermission = RuleAllow
-                    | RuleDeny
+data RulePermission = RuleAllow -- permit connection
+                    | RuleDeny -- deny connection
     deriving (Eq,Show)
 
 data Rule = Rule
-    { rulePermission:: RulePermission
-    , ruleSIDs:: (Maybe SIDs)
-    , ruleDestinations:: (Maybe Destinations)
-    , ruleDates::(Maybe Dates)
-    , ruleTimes:: (Maybe Times)
+    { rulePermission:: RulePermission -- must be some permission
+    , ruleSIDs:: (Maybe SIDs) -- rule may contain SIDs filter
+    , ruleDestinations:: (Maybe Destinations) -- ... destinations filter
+    , ruleDates::(Maybe Dates) -- dates filter
+    , ruleTimes:: (Maybe Times) -- time filter
     }
-          | Comment
+          | Comment -- or may be comment
     deriving (Eq,Show)
 
 
@@ -45,13 +45,19 @@ data SID = SIDUser SIDT
     deriving (Eq,Show)
 type SIDs = [SID]
 
-
+{-
+ - destination may be: Host (including host name), network (ip/mask),
+ - addressport (host:port)
+ -}
 data Destination = DestinationHost IPAddress
                  | DestinationNet IPAddress MaskT
                  | DestinationAddrPort IPAddress PortT
     deriving (Eq,Show)
 type Destinations = [Destination]
-           
+
+{-
+ - checks either addr2 containes addr1
+ -}
 isAddrPortExistsInDests:: Destination-> Destination-> Bool
 isAddrPortExistsInDests addr1@(DestinationAddrPort ip1 port1) 
     addr2@(DestinationAddrPort ip2 port2) = addr1 == addr2
@@ -61,6 +67,10 @@ isAddrPortExistsInDests addr1@(DestinationAddrPort ip1 port1)
     addr2@(DestinationNet ip2 mask2) = isNetContainesIP addr2 ip1
 isAddrPortExistsInDests _ _ = False
 
+{- calculates containment of addr in net by formula 
+ - (net .&. mask) == ( addr .&. mask)
+ - addr must be IPv4
+ -}
 isNetContainesIP:: Destination-> IPAddress-> Bool
 isNetContainesIP (DestinationNet netip netmask) ip1 
     | netmask == 32 = netip == ip1
@@ -78,41 +88,55 @@ isNetContainesIP (DestinationNet netip netmask) ip1
                         Right rawip ->
                             (netrawip .&. mask) == ( rawip .&. mask)
 
-
+{-
+ - generates network mask by specified bits count
+ -}
 genMask bits = genMask' bits 0
+    where
+        genMask' 0 tmp = tmp
+        genMask' bits tmp = genMask' (bits - 1) (setBit tmp (32 - bits))
 
-genMask' 0 tmp = tmp
-genMask' bits tmp = genMask' (bits - 1) (setBit tmp (32 - bits))
-
+{- 
+ - convert string IPv4 to 32-bit Int
+ -}
 ip4ToInt:: IPAddress -> Either ParseError Int
 ip4ToInt (IPAddress ip) = parse parseIntFromIP4 "unknown" ip
-
-parseIntFromIP4:: GenParser Char st Int
-parseIntFromIP4 = do
-    _b1 <- many1 digit
-    char '.'
-    _b2 <- many1 digit
-    char '.'
-    _b3 <- many1 digit
-    char '.'
-    _b4 <- many1 digit
-    let b1 = read _b1
-        b2 = read _b2
-        b3 = read _b3
-        b4 = read _b4
-        ret = (b1 `shiftL` 24 ) .|. ( b2 `shiftL` 16) .|. 
-            ( b3 `shiftL` 8) .|. b4
-    return $! ret
+    where
+        parseIntFromIP4:: GenParser Char st Int
+        parseIntFromIP4 = do
+            _b1 <- many1 digit
+            char '.'
+            _b2 <- many1 digit
+            char '.'
+            _b3 <- many1 digit
+            char '.'
+            _b4 <- many1 digit
+            let b1 = read _b1
+                b2 = read _b2
+                b3 = read _b3
+                b4 = read _b4
+                ret = (b1 `shiftL` 24 ) .|. ( b2 `shiftL` 16) .|. 
+                    ( b3 `shiftL` 8) .|. b4
+            return $! ret
     
-
+{-
+ - represents IP address. May be ipv4 or host name
+ -}
 data IPAddress = IPAddress IPT
     deriving (Eq,Show)
 type IPT = String
 
+{- 
+ - IP port [0-65535]
+ -}
 data Port = Port PortT
     deriving (Eq,Show)
 type PortT = Int
 
+
+{-
+ - represent dates: day of week, range days of week, date range, one day
+ -}
 data Date = DateDayOfWeek Int
           | DateDaysOfWeek Int Int
           | DateRange DateYYYYMMDD DateYYYYMMDD
@@ -120,6 +144,10 @@ data Date = DateDayOfWeek Int
     deriving (Eq,Show)
 type Dates = [Date]
 
+{-
+ - checks if date1 is beetwin date2 range or the same as date2 in case 
+ - date2 is one day
+ -}
 isDateBeetwinDates:: DateYYYYMMDD-> Date -> Bool
 isDateBeetwinDates date1 (DateRange date2 date3) = 
     date1 >= date2 && date1 <= date3
@@ -127,6 +155,10 @@ isDateBeetwinDates date1 (DateDay date2) =
     date1 == date2
 isDateBeetwinDates _ _ = False
 
+{- 
+ - checks if day1 of week is beetwin range of day of week day2 or is it 
+ - the same as day2 in case it just one day of week
+ -}
 isDateOfWeekBeetwinDaysOfWeek day1 (DateDaysOfWeek day2 day3) = 
     day1 >= day2 && day1 <= day3
 isDateOfWeekBeetwinDaysOfWeek day1 (DateDayOfWeek day2) = 
@@ -141,8 +173,12 @@ type Times = [Time]
 isTimeBeetwinTimes:: TimeHHMM-> Time-> Bool
 isTimeBeetwinTimes time1 (TimeRange time2 time3) = 
     time1 >= time2 && time1 <= time3
-isTimeBeetwinTimes _ _ = False
 
+
+
+{-
+ - represents time (HH:MM)
+ -}
 data TimeHHMM = TimeHHMM Int Int
     deriving (Eq,Show)
 
@@ -153,12 +189,15 @@ instance Ord TimeHHMM where
         | m1 < m2 = False
         | m1 > m2 = True
         | otherwise = False
-    time1 < time2 = not $! time1 > time2
+    time1 < time2 | time1 /= time2 = not $! time1 > time2
+                  | otherwise = False
     time1 >= time2 = time1 > time2 || time1 == time2
     time1 <= time2 = time1 < time2 || time1 == time2
     
     
-
+{-
+ - represents date (YYYY.MM.DD)
+ -}
 data DateYYYYMMDD = DateYYYYMMDD Int Int Int
     deriving (Eq, Show)
 
@@ -171,7 +210,8 @@ instance Ord DateYYYYMMDD where
         | d1 < d2 = False
         | d1 > d1 = True
         | otherwise = False
-    date1 < date2 = not $! date1 > date2
+    date1 < date2 | date1 == date2 = False
+                  | otherwise = not $! date1 > date2
     date1 >= date2 = date1 > date2 || date1 == date2
     date1 <= date2 = date1 < date2 || date1 == date2
 
@@ -394,8 +434,8 @@ parseRule = do
     return $! Rule permission sids dests dates times
     
 
-parseFile:: FileName-> IO Rules
-parseFile fname = do
+parseRuleFile:: FileName-> IO Rules
+parseRuleFile fname = do
     contents <- readFile fname
     case length contents of
         _ -> return $! Rules fname $!
@@ -425,8 +465,8 @@ parseFile fname = do
  - parse files in given directory. Files processed only with suffix
  - ".rule"
  -}
-parseDir:: String-> IO [Rules]
-parseDir dirname = do
+parseRuleDir:: String-> IO [Rules]
+parseRuleDir dirname = do
     !contents <- getDirectoryContents dirname
     !sorted <- filterM filterfoo $! reverse $! sort $! contents
     foldM doParseFiles [] sorted 
@@ -436,6 +476,6 @@ parseDir dirname = do
                     
         doParseFiles:: [Rules] -> String-> IO [Rules]
         doParseFiles rules fname = do
-            newrules <- parseFile $! dirname ++ "/" ++ fname
+            newrules <- parseRuleFile $! dirname ++ "/" ++ fname
             return $! newrules:rules 
     
