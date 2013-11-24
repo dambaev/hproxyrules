@@ -9,7 +9,7 @@ import System.IO
 import Control.Monad
 import System.Directory
 import Text.ParserCombinators.Parsec
-
+import Network.AD.SID
 
 {- Containes either error with line number or list with line and rule
  - in it
@@ -18,7 +18,6 @@ data Rules = Rules FileName (Either (Int,ParseError) [(Int, Rule)])
     deriving (Show)
 
 type FileName = String
-type SIDT = String
 
 type NetT = String
 type IP = String
@@ -40,10 +39,6 @@ data Rule = Rule
 
 
 
-data SID = SIDUser SIDT
-         | SIDGroup SIDT
-    deriving (Eq,Show)
-type SIDs = [SID]
 
 {-
  - destination may be: Host (including host name), network (ip/mask),

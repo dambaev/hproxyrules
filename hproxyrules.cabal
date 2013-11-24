@@ -18,5 +18,5 @@ library
   exposed-modules:     Data.HProxy.Rules, Data.HProxy.Session
   -- other-modules:       Control.Concurrent.HEP.Mailbox, Control.Concurrent.HEP.Proc, Control.Concurrent.HEP.Supervisor, Control.Concurrent.HEP.Types
   Hs-Source-Dirs:  src
-  build-depends:       base, parsec, directory
+  build-depends:       base, parsec, directory, sid
   ghc-options: -O -fforce-recomp -auto-all -caf-all

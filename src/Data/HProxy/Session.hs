@@ -3,6 +3,7 @@ module Data.HProxy.Session where
 
 
 import Data.HProxy.Rules
+import Network.AD.SID
 
 data ProxySession = ProxySession 
     { sessionUserSID:: SID
