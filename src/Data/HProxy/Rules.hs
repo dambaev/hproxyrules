@@ -237,22 +237,22 @@ parsePermission = do
     let allow_ = do
             spaces
             string "allow"
-            many1 space
+            spaces
             return RuleAllow
         deny_ = do
             spaces
             string "deny"
-            many1 space
+            spaces
             return RuleDeny
         allowNotify_ = do
             spaces
             string "allowNotify"
-            many1 space
+            spaces
             return RuleAllowNotify
         denyNotify_ = do
             spaces
             string "denyNotify"
-            many1 space
+            spaces
             return RuleDenyNotify        
     try allowNotify_ <|> try allow_  <|>  try denyNotify_ <|> deny_
 
