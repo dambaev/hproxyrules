@@ -242,7 +242,15 @@ parsePermission = do
             spaces
             string "deny"
             return RuleDeny
-    allow_ <|> deny_
+        allowNotify_ = do
+            spaces
+            string "allowNotify"
+            return RuleAllowNotify
+        denyNotify_ = do
+            spaces
+            string "denyNotify"
+            return RuleDenyNotify        
+    allowNotify_ <|> allow_  <|>  denyNotify_ <|> deny_
 
 parseSIDs:: GenParser Char st SIDs
 parseSIDs = do
