@@ -273,13 +273,16 @@ parseSID = do
             spaces
             string "user"
             spaces
-            ret <- many1 alphaNum
+            ret <- many1 $!
+                (try (char 'S') <|> try (char '-') <|> try digit)
             return $! SIDUser ret
         sidGroup = do
             spaces
             string "group"
             spaces
-            many1 alphaNum >>= return . SIDGroup
+            ret <- many1 $!
+                (try (char 'S') <|> try (char '-') <|> try digit)
+            return $! SIDGroup ret
     optional $! try (spaces >> char ',')
     try sidUser <|> try sidGroup
 
