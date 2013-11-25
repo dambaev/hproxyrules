@@ -7,6 +7,7 @@ import Network.AD.SID
 
 data ProxySession = ProxySession 
     { sessionUserSID:: SID
+    , sessionUserName:: String
     , sessionGroupsSIDs:: SIDs
     , sessionDate:: DateYYYYMMDD
     , sessionWeekDay:: Int

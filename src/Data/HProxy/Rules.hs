@@ -25,6 +25,8 @@ type MaskT = Int
 
 data RulePermission = RuleAllow -- permit connection
                     | RuleDeny -- deny connection
+                    | RuleAllowNotify -- permit, but notify
+                    | RuleDenyNotify -- deny and notify
     deriving (Eq,Show)
 
 data Rule = Rule
