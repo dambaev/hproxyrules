@@ -33,6 +33,7 @@ data Rule = Rule
     { rulePermission:: RulePermission -- must be some permission
     , ruleSIDs:: (Maybe SIDs) -- rule may contain SIDs filter
     , ruleDestinations:: (Maybe Destinations) -- ... destinations filter
+    , rulePorts:: Maybe Ports
     , ruleDates::(Maybe Dates) -- dates filter
     , ruleTimes:: (Maybe Times) -- time filter
     }
@@ -127,9 +128,15 @@ type IPT = String
  - IP port [0-65535]
  -}
 data Port = Port PortT
+          | PortRange PortT PortT
     deriving (Eq,Show)
 type PortT = Int
 
+type Ports = [Port]
+
+isPortBeetwinPorts:: PortT -> Port -> Bool
+isPortBeetwinPorts port (Port _r) = port == _r 
+isPortBeetwinPorts port (PortRange from to) = from <= port && port <= to
 
 {-
  - represent dates: day of week, range days of week, date range, one day
@@ -297,6 +304,47 @@ parseDestinations = do
     char ']'
     return dests
 
+parsePorts:: GenParser Char st Ports
+parsePorts = do
+    spaces
+    string "ports"
+    spaces
+    char '['
+    ports <- many1 $! try parsePort
+    spaces
+    char ']'
+    return ports
+
+parsePort:: GenParser Char st  Port
+parsePort = do
+    optional $! try (spaces >> char ',')
+    try parseOnePort <|> try parsePortRange
+    
+
+parseOnePort:: GenParser Char st Port
+parseOnePort = do
+    spaces
+    string "port"
+    spaces
+    port <- many1 digit
+    let ipport = read port
+    return $! Port ipport
+
+parsePortRange:: GenParser Char st Port
+parsePortRange = do
+    spaces
+    string "range"
+    spaces
+    from <- many1 digit
+    spaces
+    char '-'
+    spaces
+    to <- many1 digit
+    let intfrom = read from
+        intto = read to
+    return $! PortRange intfrom intto
+
+
 parseDestination:: GenParser Char st  Destination
 parseDestination = do
     optional $! try (spaces >> char ',')
@@ -441,9 +489,10 @@ parseRule = do
     permission <- parsePermission
     sids <- optionMaybe $! try parseSIDs
     dests <- optionMaybe $! try parseDestinations
+    ports <- optionMaybe $! try parsePorts
     dates <- optionMaybe $! try parseDates
     times <- optionMaybe $! try parseTimes
-    return $! Rule permission sids dests dates times
+    return $! Rule permission sids dests ports dates times
     
 
 parseRuleFile:: FileName-> IO Rules

@@ -23,6 +23,7 @@ data MatchHelper = MatchHelper
     , matchedByWeekDay:: Maybe Bool
     , matchedByTime:: Maybe Bool
     , matchedByDestination:: Maybe Bool
+    , matchedByPorts:: Maybe Bool
     }
     deriving (Eq, Show)
 
@@ -33,6 +34,7 @@ emptyHelper = MatchHelper
     , matchedByWeekDay = Nothing
     , matchedByTime = Nothing
     , matchedByDestination = Nothing
+    , matchedByPorts = Nothing
     }
 
 isMatched:: MatchHelper -> Bool
@@ -44,6 +46,8 @@ isMatched (MatchHelper{ matchedByDestination = Just False}) = False
 -- dates
 isMatched (MatchHelper{ matchedByDate = Just False
                       , matchedByWeekDay = Just False }) = False
+-- ports
+isMatched (MatchHelper{ matchedByPorts = Just False}) = False
 -- times
 isMatched (MatchHelper{ matchedByTime = Just False}) = False
 isMatched _ = True
@@ -165,6 +169,21 @@ matchSessionRule'
     !rule@(Rule{ ruleDestinations = Just _ruleDests} ) = 
         let !newhelper = helper{matchedByDestination = Just beetwin}
             !beetwin = any (\dest -> sesDest `isAddrPortExistsInDests` dest) _ruleDests
+        in matchSessionRule' newhelper session rule
+
+-- ports
+matchSessionRule' 
+    !helper@(MatchHelper{ matchedByPorts = Nothing})
+    !session@(ProxySession{ sessionDestination = (DestinationAddrPort _ sesPort)})
+    !rule@(Rule{ rulePorts = Nothing} ) = 
+        let !newhelper = helper{matchedByPorts = Just True}
+        in matchSessionRule' newhelper session rule
+matchSessionRule' 
+    !helper@(MatchHelper{ matchedByPorts = Nothing})
+    !session@(ProxySession{ sessionDestination = (DestinationAddrPort _ sesPort)})
+    !rule@(Rule{ rulePorts = Just _rulePorts} ) = 
+        let !newhelper = helper{matchedByPorts = Just beetwin}
+            !beetwin = any (\dest -> sesPort `isPortBeetwinPorts` dest) _rulePorts
         in matchSessionRule' newhelper session rule
 
 -- after checks
