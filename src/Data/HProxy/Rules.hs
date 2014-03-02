@@ -370,7 +370,7 @@ parseNet = do
 parseIPAddress :: GenParser Char st IPAddress
 parseIPAddress = do
     spaces
-    ret <- many $! alphaNum <|> char '.' 
+    ret <- many $! alphaNum <|> char '.' <|> char '-' <|> char '_'
     return $! IPAddress ret
     
 
